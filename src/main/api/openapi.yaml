@@ -1,0 +1,269 @@
+openapi: 3.0.3
+info:
+  title: HTTP Commands API
+  description: |
+    API for executing Minecraft server commands via HTTP requests.
+    
+    ## Features
+    - Execute Minecraft commands via REST API
+    - Get server and player information
+    - Command queuing for offline players
+    
+    ## Authentication
+    All endpoints (except root) require Bearer token authentication.
+  version: 1.0.0
+  contact:
+    name: Lenaic GROLLEAU
+    url: https://github.com/lenaic/http-commands-plugin
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+  - url: https://your-server.com
+    description: Production server (requires reverse proxy with HTTPS)
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Bearer token from plugin configuration
+
+  schemas:
+    ServerInfo:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        playerCount:
+          type: integer
+          example: 5
+          description: Current number of online players
+        maxPlayers:
+          type: integer
+          example: 100
+          description: Maximum player count
+        serverVersion:
+          type: string
+          example: "Paper 1.21.4"
+          description: Server version
+
+    PlayersList:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        players:
+          type: array
+          items:
+            type: string
+          example: ["Player1", "Player2"]
+          description: List of online player names
+        count:
+          type: integer
+          example: 2
+        maxPlayers:
+          type: integer
+          example: 100
+
+    CommandRequest:
+      type: object
+      required:
+        - commands
+      properties:
+        commands:
+          type: array
+          items:
+            type: string
+          example: ["say Hello!", "give Player1 diamond 1"]
+          description: Array of commands to execute
+        waitForPlayer:
+          type: string
+          example: "Player1"
+          description: Optional player name to wait for before executing commands
+
+    CommandResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        statuses:
+          type: array
+          items:
+            type: string
+            enum: [passed, failed]
+          example: ["passed", "passed"]
+          description: Execution status for each command
+        outputs:
+          type: array
+          items:
+            type: object
+          nullable: true
+          description: Command outputs (null if no output)
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        output:
+          type: string
+          description: Error message
+
+tags:
+  - name: Server
+    description: Server information endpoints
+  - name: Players
+    description: Player management endpoints
+  - name: Commands
+    description: Command execution endpoints
+
+paths:
+  /:
+    get:
+      summary: API root
+      description: Returns a welcome message
+      tags:
+        - Server
+      responses:
+        '200':
+          description: Welcome message
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "HTTP Commands API v1.0.0"
+
+  /info:
+    get:
+      summary: Get server information
+      description: Returns server information including player count, max players, and server version
+      tags:
+        - Server
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerInfo'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /players:
+    get:
+      summary: Get online players
+      description: Returns a list of currently online players with player count and max players
+      tags:
+        - Players
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayersList'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /execute:
+    post:
+      summary: Execute commands
+      description: |
+        Execute one or more Minecraft commands on the server.
+        
+        Commands are executed sequentially in the order they are provided.
+        
+        ## Wait for Player
+        Use the `waitForPlayer` parameter to delay command execution until a specific player joins the server.
+        If the player is already online, commands execute immediately.
+        If the player is offline, commands are saved and will execute when the player joins.
+      tags:
+        - Commands
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommandRequest'
+            examples:
+              simple:
+                summary: Simple command execution
+                value:
+                  commands:
+                    - say Hello from HTTP API!
+              multiple:
+                summary: Multiple commands
+                value:
+                  commands:
+                    - say Hello!
+                    - give Player1 diamond 1
+              waitForPlayer:
+                summary: Wait for player
+                value:
+                  commands:
+                    - give Player1 diamond 64
+                  waitForPlayer: Player1
+      responses:
+        '200':
+          description: Commands executed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResponse'
+        '202':
+          description: Commands saved for pending player
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  output:
+                    type: string
+                    example: "Commands saved and will execute when player 'Player1' joins"
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
