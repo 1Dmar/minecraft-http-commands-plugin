@@ -20,7 +20,7 @@ A Minecraft Paper plugin that allows executing server commands via HTTP requests
 
 ### From Release
 
-1. Download the latest release from the [Releases](https://github.com/lenaic/http-commands-plugin/releases) page
+1. Download the latest release from the [Releases](https://github.com/lelenaic/minecraft-http-commands-plugin/releases) page
 2. Drop the `http-commands-*.jar` file into your server's `plugins` folder
 3. Restart or reload your server
 
@@ -28,7 +28,7 @@ A Minecraft Paper plugin that allows executing server commands via HTTP requests
 
 ```bash
 # Clone the repository
-git clone https://github.com/lenaic/http-commands-plugin.git
+git clone https://github.com/lelenaic/minecraft-http-commands-plugin.git
 cd http-commands-plugin
 
 # Build the plugin

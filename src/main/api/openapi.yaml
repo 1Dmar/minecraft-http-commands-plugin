@@ -14,7 +14,7 @@ info:
   version: 1.0.0
   contact:
     name: Lenaic GROLLEAU
-    url: https://github.com/lenaic/http-commands-plugin
+    url: https://github.com/lelenaic/minecraft-http-commands-plugin
 
 servers:
   - url: http://localhost:8080
