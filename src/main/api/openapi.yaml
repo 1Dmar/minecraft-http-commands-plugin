@@ -10,7 +10,7 @@ info:
     - Command queuing for offline players
     
     ## Authentication
-    All endpoints (except root) require Bearer token authentication.
+    All endpoints require Bearer token authentication.
   version: 1.0.0
   contact:
     name: Lenaic GROLLEAU
@@ -127,24 +127,6 @@ tags:
     description: Command execution endpoints
 
 paths:
-  /:
-    get:
-      summary: API root
-      description: Returns a welcome message
-      tags:
-        - Server
-      responses:
-        '200':
-          description: Welcome message
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: "HTTP Commands API v1.0.0"
-
   /info:
     get:
       summary: Get server information
