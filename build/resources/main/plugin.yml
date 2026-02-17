@@ -1,5 +1,5 @@
 name: HTTP-Commands
-version: 1.0.0
+version: 1.0.2
 main: me.lenaic.httpcommands.HttpCommandsPlugin
 api-version: '1.21'
 author: Lenaic GROLLEAU
