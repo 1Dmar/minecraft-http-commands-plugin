@@ -29,3 +29,4 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: build/libs/http-commands.jar
+          token: ${{ secrets.PAT }}
