@@ -25,6 +25,17 @@ jobs:
       - name: Build with Gradle
         run: gradle build
 
+      - name: Generate OpenAPI Docs
+        run: gradle openApiGenerate
+
+      - name: Upload OpenAPI docs to FTP
+        uses: airvzxf/ftp-deployment-action@latest
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          user: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASS }}
+          local_dir: "./docs"
+
       - name: Upload JAR to Release
         uses: softprops/action-gh-release@v2
         with:
