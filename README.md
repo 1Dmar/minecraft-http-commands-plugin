@@ -40,24 +40,7 @@ cp build/libs/http-commands-*.jar /path/to/server/plugins/
 
 ## Configuration
 
-After first launch, the plugin creates `plugins/http-commands/config.yml`:
-
-```yaml
-# HTTP Commands Plugin Configuration
-
-# Port for the HTTP server to listen on
-port: 8080
-
-# Require HTTPS for all requests
-# When enabled, the plugin will log an error if a request is made over HTTP
-# This is intended to encourage the use of a reverse proxy with HTTPS
-# Set to false to allow direct HTTP access (not recommended for production)
-require-https: true
-
-# Bearer token for authentication
-# WARNING: Change this to a secure token in production!
-bearer-token: "change-me-to-a-secure-token"
-```
+After first launch, the plugin creates `plugins/http-commands/config.yml`.
 
 ### Security Recommendations
 
@@ -91,6 +74,7 @@ server {
 ## API Documentation
 
 Interactive API documentation is generated from the OpenAPI specification.
+You can access the API documentation from here: https://minecraft-http-commands-plugin-api-doc.lenaic.me
 
 ### Generating Documentation
 
