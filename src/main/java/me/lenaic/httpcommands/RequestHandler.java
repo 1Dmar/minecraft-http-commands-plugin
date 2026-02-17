@@ -1,7 +1,10 @@
 package me.lenaic.httpcommands;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.sun.net.httpserver.HttpExchange;
@@ -29,11 +32,13 @@ public class RequestHandler implements HttpHandler {
     private final HttpCommandsPlugin plugin;
     private final ConfigManager configManager;
     private final PendingCommandManager pendingCommandManager;
+    private final Gson gson;
 
     public RequestHandler(HttpCommandsPlugin plugin, ConfigManager configManager, PendingCommandManager pendingCommandManager) {
         this.plugin = plugin;
         this.configManager = configManager;
         this.pendingCommandManager = pendingCommandManager;
+        this.gson = new GsonBuilder().create();
     }
 
     @Override
@@ -221,30 +226,19 @@ public class RequestHandler implements HttpHandler {
         Bukkit.getOnlinePlayers().forEach(player -> playerNames.add(player.getName()));
         int maxPlayers = Bukkit.getMaxPlayers();
 
-        // Build JSON response
-        StringBuilder json = new StringBuilder();
-        json.append("{\"success\":true,\"players\":[");
-        for (int i = 0; i < playerNames.size(); i++) {
-            if (i > 0) {
-                json.append(",");
-            }
-            json.append("\"");
-            json.append(escapeJson(playerNames.get(i)));
-            json.append("\"");
+        // Build JSON response using GSON
+        JsonObject jsonObject = new JsonObject();
+        jsonObject.addProperty("success", true);
+        
+        JsonArray playersArray = new JsonArray();
+        for (String playerName : playerNames) {
+            playersArray.add(playerName);
         }
-        json.append("],\"count\":");
-        json.append(playerNames.size());
-        json.append(",\"maxPlayers\":");
-        json.append(maxPlayers);
-        json.append("}");
+        jsonObject.add("players", playersArray);
+        jsonObject.addProperty("count", playerNames.size());
+        jsonObject.addProperty("maxPlayers", maxPlayers);
 
-        exchange.getResponseHeaders().set("Content-Type", "application/json");
-        byte[] responseBytes = json.toString().getBytes(StandardCharsets.UTF_8);
-        exchange.sendResponseHeaders(200, responseBytes.length);
-
-        try (OutputStream os = exchange.getResponseBody()) {
-            os.write(responseBytes);
-        }
+        sendJsonResponseJson(exchange, 200, jsonObject);
     }
 
     /**
@@ -263,23 +257,14 @@ public class RequestHandler implements HttpHandler {
         int maxPlayers = Bukkit.getMaxPlayers();
         String serverVersion = Bukkit.getVersion();
 
-        // Build JSON response
-        StringBuilder json = new StringBuilder();
-        json.append("{\"success\":true,\"playerCount\":");
-        json.append(playerCount);
-        json.append(",\"maxPlayers\":");
-        json.append(maxPlayers);
-        json.append(",\"serverVersion\":\"");
-        json.append(escapeJson(serverVersion));
-        json.append("\"}");
+        // Build JSON response using GSON
+        JsonObject jsonObject = new JsonObject();
+        jsonObject.addProperty("success", true);
+        jsonObject.addProperty("playerCount", playerCount);
+        jsonObject.addProperty("maxPlayers", maxPlayers);
+        jsonObject.addProperty("serverVersion", serverVersion);
 
-        exchange.getResponseHeaders().set("Content-Type", "application/json");
-        byte[] responseBytes = json.toString().getBytes(StandardCharsets.UTF_8);
-        exchange.sendResponseHeaders(200, responseBytes.length);
-
-        try (OutputStream os = exchange.getResponseBody()) {
-            os.write(responseBytes);
-        }
+        sendJsonResponseJson(exchange, 200, jsonObject);
     }
 
     /**
@@ -292,30 +277,6 @@ public class RequestHandler implements HttpHandler {
             plugin.getLogger().log(Level.WARNING, "Failed to read request body", e);
             return null;
         }
-    }
-
-    /**
-     * Parse commands array from JSON using Gson
-     * @deprecated Use parseRequestData instead
-     */
-    @Deprecated
-    private List<String> parseCommandsFromJson(String json) {
-        List<String> commands = new ArrayList<>();
-        
-        try {
-            JsonElement root = JsonParser.parseString(json);
-            JsonArray commandsArray = root.getAsJsonObject().getAsJsonArray("commands");
-            
-            if (commandsArray != null) {
-                for (JsonElement element : commandsArray) {
-                    commands.add(element.getAsString());
-                }
-            }
-        } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING, "Failed to parse JSON", e);
-        }
-        
-        return commands;
     }
 
     /**
@@ -403,108 +364,56 @@ public class RequestHandler implements HttpHandler {
      * Send JSON response with status and outputs arrays
      */
     private void sendJsonWithStatusAndOutputs(HttpExchange exchange, int statusCode, String key, boolean value, List<String> statuses, List<String> outputs) throws IOException {
-        StringBuilder json = new StringBuilder();
-        json.append("{\"");
-        json.append(key);
-        json.append("\":");
-        json.append(value);
-        json.append(",\"statuses\":[");
+        JsonObject jsonObject = new JsonObject();
+        jsonObject.addProperty(key, value);
         
-        // Build statuses array
-        for (int i = 0; i < statuses.size(); i++) {
-            if (i > 0) {
-                json.append(",");
-            }
-            json.append("\"");
-            json.append(escapeJson(statuses.get(i)));
-            json.append("\"");
+        JsonArray statusesArray = new JsonArray();
+        for (String status : statuses) {
+            statusesArray.add(status);
         }
+        jsonObject.add("statuses", statusesArray);
         
-        json.append("],\"outputs\":[");
-        
-        // Build outputs array - keep JSON as objects, use null for empty
-        for (int i = 0; i < outputs.size(); i++) {
-            if (i > 0) {
-                json.append(",");
-            }
-            String output = outputs.get(i);
+        JsonArray outputsArray = new JsonArray();
+        for (String output : outputs) {
             if (output == null) {
-                json.append("null");
+                outputsArray.add(JsonNull.INSTANCE);
             } else {
-                // Output is already JSON from Adventure, use it directly
-                json.append(output);
+                // Output is already JSON from Adventure, parse it to handle properly
+                try {
+                    JsonElement parsed = JsonParser.parseString(output);
+                    outputsArray.add(parsed);
+                } catch (Exception e) {
+                    // If not valid JSON, treat as string
+                    outputsArray.add(output);
+                }
             }
         }
+        jsonObject.add("outputs", outputsArray);
         
-        json.append("]}");
-        
-        exchange.getResponseHeaders().set("Content-Type", "application/json");
-        byte[] responseBytes = json.toString().getBytes(StandardCharsets.UTF_8);
-        exchange.sendResponseHeaders(statusCode, responseBytes.length);
-        
-        try (OutputStream os = exchange.getResponseBody()) {
-            os.write(responseBytes);
-        }
+        sendJsonResponseJson(exchange, statusCode, jsonObject);
     }
 
     /**
      * Send JSON response
      */
     private void sendJsonResponse(HttpExchange exchange, int statusCode, String key, boolean value, String output) throws IOException {
-        String json = String.format("{\"%s\":%b,\"output\":\"%s\"}", key, value, escapeJson(output));
+        JsonObject jsonObject = new JsonObject();
+        jsonObject.addProperty(key, value);
+        jsonObject.addProperty("output", output);
         
+        sendJsonResponseJson(exchange, statusCode, jsonObject);
+    }
+
+    /**
+     * Send JSON response with JsonObject
+     */
+    private void sendJsonResponseJson(HttpExchange exchange, int statusCode, JsonObject jsonObject) throws IOException {
         exchange.getResponseHeaders().set("Content-Type", "application/json");
-        byte[] responseBytes = json.getBytes(StandardCharsets.UTF_8);
+        byte[] responseBytes = gson.toJson(jsonObject).getBytes(StandardCharsets.UTF_8);
         exchange.sendResponseHeaders(statusCode, responseBytes.length);
         
         try (OutputStream os = exchange.getResponseBody()) {
             os.write(responseBytes);
         }
-    }
-
-    /**
-     * Send JSON response with array output
-     */
-    private void sendJsonArrayResponse(HttpExchange exchange, int statusCode, String key, boolean value, List<String> outputs) throws IOException {
-        StringBuilder json = new StringBuilder();
-        json.append("{\"");
-        json.append(key);
-        json.append("\":");
-        json.append(value);
-        json.append(",\"outputs\":[");
-        
-        for (int i = 0; i < outputs.size(); i++) {
-            if (i > 0) {
-                json.append(",");
-            }
-            json.append("\"");
-            json.append(escapeJson(outputs.get(i)));
-            json.append("\"");
-        }
-        
-        json.append("]}");
-        
-        exchange.getResponseHeaders().set("Content-Type", "application/json");
-        byte[] responseBytes = json.toString().getBytes(StandardCharsets.UTF_8);
-        exchange.sendResponseHeaders(statusCode, responseBytes.length);
-        
-        try (OutputStream os = exchange.getResponseBody()) {
-            os.write(responseBytes);
-        }
-    }
-
-    /**
-     * Escape special characters for JSON
-     */
-    private String escapeJson(String text) {
-        if (text == null) {
-            return "";
-        }
-        return text
-                .replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r")
-                .replace("\t", "\\t");
     }
 }

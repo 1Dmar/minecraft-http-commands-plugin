@@ -7,6 +7,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bstats.bukkit.Metrics;
 
 import java.util.List;
 
@@ -32,6 +33,9 @@ public final class HttpCommandsPlugin extends JavaPlugin implements Listener {
         // Initialize and start HTTP server
         httpServerManager = new HttpServerManager(this, configManager, pendingCommandManager);
         httpServerManager.start();
+
+        int pluginId = 29591;
+        Metrics metrics = new Metrics(this, pluginId);
 
         // Register event listener for player join
         getServer().getPluginManager().registerEvents(this, this);
