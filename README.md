@@ -1,5 +1,7 @@
 # HTTP Commands Plugin
 
+![](https://i.imgur.com/CwjA2bC.jpeg)
+
 A Minecraft Paper plugin that allows executing server commands via HTTP requests. Perfect for integrating external tools, web dashboards, or automation scripts with your Minecraft server.
 
 ## Features
