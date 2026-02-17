@@ -11,7 +11,7 @@ info:
     
     ## Authentication
     All endpoints require Bearer token authentication.
-  version: 1.0.2
+  version: 1.0.3
   contact:
     name: Lenaic GROLLEAU
     url: https://github.com/lelenaic/minecraft-http-commands-plugin
@@ -114,9 +114,12 @@ components:
         success:
           type: boolean
           example: false
-        output:
+        error:
           type: string
           description: Error message
+        message:
+          type: string
+          description: Success message (for 2xx responses)
 
 tags:
   - name: Server

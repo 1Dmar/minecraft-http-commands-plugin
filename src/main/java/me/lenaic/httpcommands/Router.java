@@ -1,0 +1,137 @@
+package me.lenaic.httpcommands;
+
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
+
+import java.io.IOException;
+import java.util.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/**
+ * Router that manages endpoint registration and request routing.
+ * Follows the Open/Closed Principle - new endpoints can be added without modifying this class.
+ *
+ * To add a new endpoint:
+ * 1. Create a new class implementing the Endpoint interface
+ * 2. Register it with router.registerEndpoint(new YourEndpoint())
+ * 3. No need to modify Router or any existing endpoint code
+ */
+public class Router implements HttpHandler {
+
+    private final Map<String, Endpoint> endpoints = new LinkedHashMap<>();
+    private final ConfigManager configManager;
+    private final Logger logger;
+
+    public Router(ConfigManager configManager, Logger logger) {
+        this.configManager = configManager;
+        this.logger = logger;
+    }
+
+    /**
+     * Register an endpoint with the router
+     * @param endpoint the endpoint to register
+     */
+    public void registerEndpoint(Endpoint endpoint) {
+        String key = endpoint.getMethod().toUpperCase() + ":" + endpoint.getPath();
+        endpoints.put(key, endpoint);
+    }
+
+    /**
+     * Get all registered endpoints (for documentation/debugging)
+     * @return list of endpoint descriptions
+     */
+    public List<String> getRegisteredEndpoints() {
+        List<String> result = new ArrayList<>();
+        for (Endpoint endpoint : endpoints.values()) {
+            result.add(endpoint.getMethod() + " " + endpoint.getPath());
+        }
+        return result;
+    }
+
+    /**
+     * Handle incoming HTTP requests - routes to the appropriate endpoint
+     */
+    @Override
+    public void handle(HttpExchange exchange) throws IOException {
+        String path = exchange.getRequestURI().getPath();
+        String method = exchange.getRequestMethod();
+
+        // Check if HTTPS is required
+        if (!checkHttps(exchange)) {
+            sendErrorResponse(exchange, 400, "HTTPS is required. Please use a reverse proxy with HTTPS.");
+            return;
+        }
+
+        // Find the matching endpoint
+        String key = method.toUpperCase() + ":" + path;
+        Endpoint endpoint = endpoints.get(key);
+
+        if (endpoint == null) {
+            sendErrorResponse(exchange, 404, "Endpoint not found: " + method + " " + path);
+            return;
+        }
+
+        // Check authentication if required
+        if (endpoint.requiresAuth()) {
+            String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
+            if (!isValidAuth(authHeader)) {
+                sendErrorResponse(exchange, 401, "Unauthorized: Invalid or missing Bearer token");
+                return;
+            }
+        }
+
+        // Delegate to the endpoint handler
+        try {
+            endpoint.handle(exchange);
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error handling request for " + path, e);
+            sendErrorResponse(exchange, 500, "Internal server error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Check if the request was made over HTTPS
+     */
+    private boolean checkHttps(HttpExchange exchange) {
+        if (!configManager.isRequireHttps()) {
+            return true;
+        }
+
+        String forwardedProto = exchange.getRequestHeaders().getFirst("X-Forwarded-Proto");
+        boolean isHttps = "https".equalsIgnoreCase(forwardedProto);
+
+        if (!isHttps) {
+            String remoteAddr = exchange.getRemoteAddress().getAddress().getHostAddress();
+            logger.severe("SECURITY WARNING: Non-HTTPS request received from " + remoteAddr);
+        }
+
+        return isHttps;
+    }
+
+    /**
+     * Validate Bearer token from Authorization header
+     */
+    private boolean isValidAuth(String authHeader) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return false;
+        }
+        String token = authHeader.substring(7); // Remove "Bearer " prefix
+        return token.equals(configManager.getBearerToken());
+    }
+
+    /**
+     * Send an error response
+     */
+    private void sendErrorResponse(HttpExchange exchange, int statusCode, String message) throws IOException {
+        com.google.gson.JsonObject jsonObject = new com.google.gson.JsonObject();
+        jsonObject.addProperty("success", false);
+        jsonObject.addProperty("error", message);
+        exchange.getResponseHeaders().set("Content-Type", "application/json");
+        byte[] responseBytes = jsonObject.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        exchange.sendResponseHeaders(statusCode, responseBytes.length);
+        try (java.io.OutputStream os = exchange.getResponseBody()) {
+            os.write(responseBytes);
+        }
+    }
+}
