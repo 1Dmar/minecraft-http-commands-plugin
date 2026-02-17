@@ -23,7 +23,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v5
 
       - name: Build with Gradle
-        run: ./gradlew build
+        run: gradle build
 
       - name: Upload JAR to Release
         uses: softprops/action-gh-release@v2
