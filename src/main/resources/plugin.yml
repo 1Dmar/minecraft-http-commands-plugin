@@ -1,5 +1,5 @@
 name: HTTP-Commands
-version: 1.0.3
+version: 1.1.0
 main: me.lenaic.httpcommands.HttpCommandsPlugin
 api-version: '1.21'
 author: Lenaic GROLLEAU
@@ -10,3 +10,6 @@ commands:
     description: Reload the HTTP server configuration
     usage: /<command> reload
     permission: httpcommands.reload
+  register:
+    description: Confirm or deny account registration
+    usage: /<command> <confirm|deny> <registrationId>

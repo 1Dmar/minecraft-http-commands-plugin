@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 
 /**
  * Router that manages endpoint registration and request routing.
@@ -20,6 +21,7 @@ import java.util.logging.Logger;
 public class Router implements HttpHandler {
 
     private final Map<String, Endpoint> endpoints = new LinkedHashMap<>();
+    private final Map<Pattern, Endpoint> patternEndpoints = new LinkedHashMap<>();
     private final ConfigManager configManager;
     private final Logger logger;
 
@@ -33,8 +35,60 @@ public class Router implements HttpHandler {
      * @param endpoint the endpoint to register
      */
     public void registerEndpoint(Endpoint endpoint) {
-        String key = endpoint.getMethod().toUpperCase() + ":" + endpoint.getPath();
-        endpoints.put(key, endpoint);
+        String path = endpoint.getPath();
+        
+        // Check if path contains path parameters (e.g., /player/{username})
+        if (path.contains("{") && path.contains("}")) {
+            // Convert {param} to regex pattern with capture group
+            String regexPath = path.replaceAll("\\{([^}]+)\\}", "([^/]+)");
+            Pattern pattern = Pattern.compile("^" + regexPath + "$");
+            patternEndpoints.put(pattern, endpoint);
+        } else {
+            String key = endpoint.getMethod().toUpperCase() + ":" + path;
+            endpoints.put(key, endpoint);
+        }
+    }
+
+    /**
+     * Find endpoint for the given path (supports path parameters)
+     * @param method the HTTP method
+     * @param path the request path
+     * @return the endpoint and extracted path parameters, or null if not found
+     */
+    private Map.Entry<Endpoint, Map<String, String>> findEndpoint(String method, String path) {
+        // First, try exact match
+        String key = method.toUpperCase() + ":" + path;
+        Endpoint endpoint = endpoints.get(key);
+        if (endpoint != null) {
+            return new AbstractMap.SimpleEntry<>(endpoint, Collections.emptyMap());
+        }
+        
+        // Then try pattern matching
+        for (Map.Entry<Pattern, Endpoint> entry : patternEndpoints.entrySet()) {
+            java.util.regex.Matcher matcher = entry.getKey().matcher(path);
+            if (matcher.matches()) {
+                // Get the endpoint from the entry
+                Endpoint matchedEndpoint = entry.getValue();
+                
+                // Extract path parameters
+                Map<String, String> params = new HashMap<>();
+                
+                // Extract parameter names from pattern like /player/{username}
+                java.util.regex.Pattern paramPattern = java.util.regex.Pattern.compile("\\{([^}]+)\\}");
+                java.util.regex.Matcher paramMatcher = paramPattern.matcher(matchedEndpoint.getPath());
+                
+                int groupIndex = 1;
+                while (paramMatcher.find()) {
+                    String paramName = paramMatcher.group(1);
+                    params.put(paramName, matcher.group(groupIndex));
+                    groupIndex++;
+                }
+                
+                return new AbstractMap.SimpleEntry<>(matchedEndpoint, params);
+            }
+        }
+        
+        return null;
     }
 
     /**
@@ -44,6 +98,9 @@ public class Router implements HttpHandler {
     public List<String> getRegisteredEndpoints() {
         List<String> result = new ArrayList<>();
         for (Endpoint endpoint : endpoints.values()) {
+            result.add(endpoint.getMethod() + " " + endpoint.getPath());
+        }
+        for (Endpoint endpoint : patternEndpoints.values()) {
             result.add(endpoint.getMethod() + " " + endpoint.getPath());
         }
         return result;
@@ -63,13 +120,20 @@ public class Router implements HttpHandler {
             return;
         }
 
-        // Find the matching endpoint
-        String key = method.toUpperCase() + ":" + path;
-        Endpoint endpoint = endpoints.get(key);
-
-        if (endpoint == null) {
+        // Find the matching endpoint (supports path parameters)
+        Map.Entry<Endpoint, Map<String, String>> matchedEndpoint = findEndpoint(method, path);
+        
+        if (matchedEndpoint == null) {
             sendErrorResponse(exchange, 404, "Endpoint not found: " + method + " " + path);
             return;
+        }
+
+        Endpoint endpoint = matchedEndpoint.getKey();
+        Map<String, String> pathParams = matchedEndpoint.getValue();
+        
+        // Store path parameters in exchange attributes for endpoints to access
+        if (!pathParams.isEmpty()) {
+            exchange.setAttribute("pathParams", pathParams);
         }
 
         // Check authentication if required

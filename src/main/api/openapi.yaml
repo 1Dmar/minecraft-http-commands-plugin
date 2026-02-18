@@ -11,7 +11,7 @@ info:
     
     ## Authentication
     All endpoints require Bearer token authentication.
-  version: 1.0.3
+  version: 1.1.0
   contact:
     name: Lenaic GROLLEAU
     url: https://github.com/lelenaic/minecraft-http-commands-plugin
@@ -72,6 +72,69 @@ components:
           type: integer
           example: 100
 
+    PlayerInfo:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        username:
+          type: string
+          example: "Player1"
+          description: Player's username
+        uuid:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+          description: Player's unique identifier
+        isOnline:
+          type: boolean
+          example: true
+          description: Whether the player is currently online
+        displayName:
+          type: string
+          nullable: true
+          example: "Player1"
+          description: Player's display name (only when online)
+        ip:
+          type: string
+          nullable: true
+          example: "127.0.0.1"
+          description: Player's IP address (only when online)
+        ping:
+          type: integer
+          nullable: true
+          example: 20
+          description: Player's ping in milliseconds (only when online)
+        world:
+          type: string
+          nullable: true
+          example: "world"
+          description: Current world (only when online)
+        balance:
+          type: number
+          nullable: true
+          example: 100.0
+          description: Player's economy balance (if Vault is available)
+        firstPlayed:
+          type: integer
+          nullable: true
+          example: 1234567890
+          description: Timestamp of first login
+        lastPlayed:
+          type: integer
+          nullable: true
+          example: 1234567890
+          description: Timestamp of last login
+        isBanned:
+          type: boolean
+          example: false
+          description: Whether the player is banned
+        isOp:
+          type: boolean
+          example: false
+          description: Whether the player has operator status
+
     CommandRequest:
       type: object
       required:
@@ -121,6 +184,50 @@ components:
           type: string
           description: Success message (for 2xx responses)
 
+    RegistrationValidationRequest:
+      type: object
+      required:
+        - username
+        - email
+        - ip
+        - callbackUrl
+        - registrationId
+      properties:
+        username:
+          type: string
+          example: "Player1"
+          description: Minecraft username of the player
+        email:
+          type: string
+          format: email
+          example: "player@example.com"
+          description: Email address provided during registration
+        ip:
+          type: string
+          format: ipv4
+          example: "192.168.1.1"
+          description: IP address from which the registration was attempted
+        callbackUrl:
+          type: string
+          format: uri
+          example: "https://website.com/api/validate"
+          description: URL to call when player confirms or denies the registration
+        registrationId:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+          description: Unique registration ID provided by the website
+
+    RegistrationValidationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          description: Success message
+
 tags:
   - name: Server
     description: Server information endpoints
@@ -128,6 +235,8 @@ tags:
     description: Player management endpoints
   - name: Commands
     description: Command execution endpoints
+  - name: Registration
+    description: Player registration validation endpoints
 
 paths:
   /info:
@@ -169,6 +278,54 @@ paths:
                 $ref: '#/components/schemas/PlayersList'
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /player/{username}:
+    get:
+      summary: Get player information
+      description: |
+        Returns detailed information about a specific player.
+        
+        The player can be online or offline. For online players, additional information
+        such as IP address, ping, and current world is included.
+        
+        If Vault is installed, the player's economy balance will also be included.
+      tags:
+        - Players
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: username
+          in: path
+          required: true
+          description: The Minecraft username of the player
+          schema:
+            type: string
+            example: "Player1"
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerInfo'
+        '400':
+          description: Bad request - missing username parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Player not found
           content:
             application/json:
               schema:
@@ -248,6 +405,58 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /validate-registration:
+    post:
+      summary: Validate player registration
+      description: |
+        Sends a chat message to the player asking for confirmation to allow
+        their account to be registered with the provided email and IP address.
+        
+        The player must be online to receive the validation message.
+        They can respond with /register confirm or /register deny.
+      tags:
+        - Registration
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegistrationValidationRequest'
+            examples:
+              request:
+                summary: Registration validation request
+                value:
+                  username: "Player1"
+                  email: "player@example.com"
+                  ip: "192.168.1.1"
+      responses:
+        '200':
+          description: Validation message sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationValidationResponse'
+        '400':
+          description: Bad request - missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Player not found or not online
           content:
             application/json:
               schema:

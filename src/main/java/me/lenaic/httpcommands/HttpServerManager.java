@@ -3,6 +3,9 @@ package me.lenaic.httpcommands;
 import me.lenaic.httpcommands.endpoints.ExecuteCommandEndpoint;
 import me.lenaic.httpcommands.endpoints.GetInfoEndpoint;
 import me.lenaic.httpcommands.endpoints.GetPlayersEndpoint;
+import me.lenaic.httpcommands.endpoints.GetPlayerEndpoint;
+import me.lenaic.httpcommands.endpoints.ValidateRegistrationEndpoint;
+import me.lenaic.httpcommands.commands.RegisterCommand;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -45,12 +48,16 @@ public class HttpServerManager {
             router.registerEndpoint(new ExecuteCommandEndpoint(plugin, pendingCommandManager));
             router.registerEndpoint(new GetPlayersEndpoint());
             router.registerEndpoint(new GetInfoEndpoint());
+            router.registerEndpoint(new GetPlayerEndpoint());
+            ValidateRegistrationEndpoint validateEndpoint = new ValidateRegistrationEndpoint(plugin);
+            router.registerEndpoint(validateEndpoint);
+            
+            // Register /register command
+            plugin.getServer().getPluginCommand("register").setExecutor(new RegisterCommand(plugin, validateEndpoint));
 
             // Register the router as the handler for all requests
             httpServer.createContext("/", router);
 
-            // Log registered endpoints
-            plugin.getLogger().info("Registered endpoints: " + router.getRegisteredEndpoints());
 
             // Use a fixed thread pool for handling requests
             httpServer.setExecutor(Executors.newFixedThreadPool(4));

@@ -48,12 +48,5 @@ All endpoints (except root) require Bearer token authentication:
 
 ## Build Commands
 
-```bash
-# Build plugin
-./gradlew build
-
-# Build + Generate API docs
-./gradlew build openApiGenerate
-
-# Output JAR: build/libs/http-commands.jar
-```
+Always Build + Generate API docs after you ended all modifications:
+./gradlew shadowJar openApiGenerate
