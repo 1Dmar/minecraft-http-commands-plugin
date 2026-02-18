@@ -1,6 +1,5 @@
 package me.lenaic.httpcommands.commands;
 
-import me.lenaic.httpcommands.HttpCommandsPlugin;
 import me.lenaic.httpcommands.endpoints.ValidateRegistrationEndpoint;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -17,8 +16,7 @@ public class RegisterCommand implements CommandExecutor {
 
     private final ValidateRegistrationEndpoint endpoint;
 
-    public RegisterCommand(HttpCommandsPlugin plugin, ValidateRegistrationEndpoint endpoint) {
-        this.plugin = plugin;
+    public RegisterCommand(ValidateRegistrationEndpoint endpoint) {
         this.endpoint = endpoint;
     }
 

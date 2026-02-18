@@ -53,7 +53,7 @@ public class HttpServerManager {
             router.registerEndpoint(validateEndpoint);
             
             // Register /register command
-            plugin.getServer().getPluginCommand("register").setExecutor(new RegisterCommand(plugin, validateEndpoint));
+            plugin.getServer().getPluginCommand("register").setExecutor(new RegisterCommand(validateEndpoint));
 
             // Register the router as the handler for all requests
             httpServer.createContext("/", router);
