@@ -4,6 +4,7 @@ main: me.lenaic.httpcommands.HttpCommandsPlugin
 api-version: '1.21'
 author: Lenaic GROLLEAU
 description: Execute Minecraft commands via HTTP POST requests
+plugin-type: PAPER
 
 commands:
   http-commands:

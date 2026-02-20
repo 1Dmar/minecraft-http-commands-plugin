@@ -35,7 +35,7 @@ public final class HttpCommandsPlugin extends JavaPlugin implements Listener {
         httpServerManager.start();
 
         int pluginId = 29591;
-        Metrics metrics = new Metrics(this, pluginId);
+        new Metrics(this, pluginId);
 
         // Register event listener for player join
         getServer().getPluginManager().registerEvents(this, this);
