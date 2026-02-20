@@ -2,8 +2,10 @@ package me.lenaic.httpcommands.endpoints;
 
 import com.google.gson.JsonObject;
 import me.lenaic.httpcommands.Endpoint;
+import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.plugin.RegisteredServiceProvider;
 
 import java.io.IOException;
 import java.util.Map;
@@ -100,13 +102,32 @@ public class GetPlayerEndpoint implements Endpoint {
             // First and last played timestamps
             try {
                 jsonObject.addProperty("firstPlayed", offlinePlayer.getFirstPlayed());
-                jsonObject.addProperty("lastPlayed", offlinePlayer.getLastPlayed());
+                jsonObject.addProperty("lastPlayed", offlinePlayer.getLastSeen());
             } catch (Exception e) {
                 // Ignore - player might be new
             }
             
             jsonObject.addProperty("isBanned", offlinePlayer.isBanned());
             jsonObject.addProperty("isOp", offlinePlayer.isOp());
+
+            // Get player balance from Vault API
+            try {
+                RegisteredServiceProvider<Economy> rsp = Bukkit.getServicesManager().getRegistration(Economy.class);
+                if (rsp != null) {
+                    Economy economy = rsp.getProvider();
+                    if (economy != null && offlinePlayer.getName() != null) {
+                        double balance = economy.getBalance(offlinePlayer);
+                        jsonObject.addProperty("balance", balance);
+                    } else {
+                        jsonObject.addProperty("balance", 0.0);
+                    }
+                } else {
+                    jsonObject.addProperty("balance", 0.0);
+                }
+            } catch (Exception e) {
+                // Vault or economy plugin not available
+                jsonObject.addProperty("balance", 0.0);
+            }
 
             sendJsonResponse(exchange, 200, jsonObject);
             
