@@ -4,7 +4,7 @@
 # Default target
 .PHONY: help
 help:
-	@echo "HTTP Commands Plugin - Makefile"
+	@echo "ProMcScure plugin - Makefile"
 	@echo ""
 	@echo "Available targets:"
 	@echo "  set-version VERSION=x.x.x   - Update version in build.gradle, plugin.yml, and openapi.yaml"

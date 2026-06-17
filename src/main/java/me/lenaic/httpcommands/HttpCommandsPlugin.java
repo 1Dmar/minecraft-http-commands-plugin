@@ -12,7 +12,7 @@ import org.bstats.bukkit.Metrics;
 import java.util.List;
 
 /**
- * Main plugin class for HTTP-Commands
+ * Main plugin class for ProMcScure plugin
  * Provides HTTP endpoint to execute Minecraft console commands
  */
 public final class HttpCommandsPlugin extends JavaPlugin implements Listener {
@@ -40,7 +40,7 @@ public final class HttpCommandsPlugin extends JavaPlugin implements Listener {
         // Register event listener for player join
         getServer().getPluginManager().registerEvents(this, this);
 
-        getLogger().info("HTTP-Commands plugin enabled!");
+        getLogger().info("ProMcScure plugin enabled!");
     }
 
     @Override
@@ -50,7 +50,7 @@ public final class HttpCommandsPlugin extends JavaPlugin implements Listener {
             httpServerManager.stop();
         }
 
-        getLogger().info("HTTP-Commands plugin disabled!");
+        getLogger().info("ProMcScure plugin disabled!");
     }
 
     @Override
