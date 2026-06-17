@@ -48,7 +48,7 @@ public class HttpServerManager {
             router.registerEndpoint(new ExecuteCommandEndpoint(plugin, pendingCommandManager));
             router.registerEndpoint(new GetPlayersEndpoint());
             router.registerEndpoint(new GetInfoEndpoint());
-            router.registerEndpoint(new GetPlayerEndpoint());
+            router.registerEndpoint(new GetPlayerEndpoint(plugin));
             ValidateRegistrationEndpoint validateEndpoint = new ValidateRegistrationEndpoint(plugin);
             router.registerEndpoint(validateEndpoint);
             
