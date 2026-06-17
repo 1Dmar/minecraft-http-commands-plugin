@@ -162,11 +162,17 @@ public class Router implements HttpHandler {
             return true;
         }
 
+        String remoteAddr = exchange.getRemoteAddress().getAddress().getHostAddress();
+        
+        // Allow requests from localhost/127.0.0.1 (local connections)
+        if ("127.0.0.1".equals(remoteAddr) || "localhost".equals(remoteAddr)) {
+            return true;
+        }
+
         String forwardedProto = exchange.getRequestHeaders().getFirst("X-Forwarded-Proto");
         boolean isHttps = "https".equalsIgnoreCase(forwardedProto);
 
         if (!isHttps) {
-            String remoteAddr = exchange.getRemoteAddress().getAddress().getHostAddress();
             logger.severe("SECURITY WARNING: Non-HTTPS request received from " + remoteAddr);
         }
 
