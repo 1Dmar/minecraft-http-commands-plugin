@@ -13,6 +13,7 @@ import org.bukkit.plugin.RegisteredServiceProvider;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.HashMap;
 
 /**
  * Endpoint for getting player information via GET /player/{username}
@@ -21,8 +22,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public class GetPlayerEndpoint implements Endpoint {
 
     private final HttpCommandsPlugin plugin;
-    private static final ConcurrentHashMap<String, Long> playerCache = new ConcurrentHashMap<>();
-    private static final long CACHE_TTL = 30000; // 30 seconds cache
+    private final Map<String, JsonObject> cache = new ConcurrentHashMap<>();
+    private static final long CACHE_TTL = 60000; // 1 minute cache
+    private final Map<String, Long> lastCacheUpdate = new ConcurrentHashMap<>();
 
     public GetPlayerEndpoint(HttpCommandsPlugin plugin) {
         this.plugin = plugin;
@@ -72,6 +74,19 @@ public class GetPlayerEndpoint implements Endpoint {
         }
 
         String finalUsername = username;
+
+        // Check cache first
+        if (cache.containsKey(finalUsername.toLowerCase())) {
+            long lastUpdate = lastCacheUpdate.getOrDefault(finalUsername.toLowerCase(), 0L);
+            if (System.currentTimeMillis() - lastUpdate < CACHE_TTL) {
+                try {
+                    sendJsonResponse(exchange, 200, cache.get(finalUsername.toLowerCase()));
+                    return;
+                } catch (IOException e) {
+                    // Fallback to async if sending fails
+                }
+            }
+        }
 
         // Run player lookup asynchronously to avoid blocking
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
@@ -141,6 +156,10 @@ public class GetPlayerEndpoint implements Endpoint {
         // Add custom fields from config (Limited to 3)
         addCustomFields(jsonObject, player);
 
+        // Cache the response
+        cache.put(player.getName().toLowerCase(), jsonObject);
+        lastCacheUpdate.put(player.getName().toLowerCase(), System.currentTimeMillis());
+
         sendJsonResponse(exchange, 200, jsonObject);
     }
 
@@ -192,6 +211,10 @@ public class GetPlayerEndpoint implements Endpoint {
 
             // Add custom fields from config (Limited to 3)
             addCustomFields(jsonObject, offlinePlayer);
+
+            // Cache the response
+            cache.put(username.toLowerCase(), jsonObject);
+            lastCacheUpdate.put(username.toLowerCase(), System.currentTimeMillis());
 
             sendJsonResponse(exchange, 200, jsonObject);
             

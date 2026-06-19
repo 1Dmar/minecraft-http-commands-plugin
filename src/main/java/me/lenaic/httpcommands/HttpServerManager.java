@@ -60,7 +60,8 @@ public class HttpServerManager {
 
 
             // Use a fixed thread pool for handling requests
-            httpServer.setExecutor(Executors.newFixedThreadPool(4));
+            // Increased to 8 to handle more concurrent requests and prevent timeouts
+            httpServer.setExecutor(Executors.newFixedThreadPool(8));
             httpServer.start();
 
             plugin.getLogger().info("HTTP server started on port " + port);
