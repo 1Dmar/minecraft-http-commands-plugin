@@ -18,3 +18,18 @@ require-https: false
 # Bearer token for authentication
 # WARNING: Change this to a secure token in production!
 bearer-token: "change-me-to-a-secure-token"
+
+# Custom player endpoint fields
+# You can add up to 3 fields. These will be added to the /player/{username} endpoint.
+# This limit is set to match the player card design.
+# You can use placeholders from PlaceholderAPI if it's installed.
+player-endpoint-fields:
+  level:
+    display-name: "Level"
+    placeholder: "%player_level%"
+  balance:
+    display-name: "Balance"
+    placeholder: "%vault_eco_balance%"
+  server:
+    display-name: "Server"
+    placeholder: "Test Server"

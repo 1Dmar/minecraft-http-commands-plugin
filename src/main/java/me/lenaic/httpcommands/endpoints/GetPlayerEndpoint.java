@@ -3,36 +3,20 @@ package me.lenaic.httpcommands.endpoints;
 import com.google.gson.JsonObject;
 import me.lenaic.httpcommands.Endpoint;
 import me.lenaic.httpcommands.HttpCommandsPlugin;
+import me.lenaic.httpcommands.PlaceholderHook;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.RegisteredServiceProvider;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Endpoint for getting player information via GET /player/{username}
  * Optimized for offline players and doesn't lag/timeout
- *
- * Response (JSON):
- * {
- *   "success": true,
- *   "username": "Player1",
- *   "uuid": "...",
- *   "isOnline": true,
- *   "displayName": "Player1",
- *   "ip": "127.0.0.1",
- *   "ping": 20,
- *   "world": "world",
- *   "balance": 100.0,
- *   "firstPlayed": 1234567890,
- *   "lastPlayed": 1234567890,
- *   "isBanned": false,
- *   "isOp": false
- * }
  */
 public class GetPlayerEndpoint implements Endpoint {
 
@@ -154,6 +138,9 @@ public class GetPlayerEndpoint implements Endpoint {
         jsonObject.addProperty("level", player.getLevel());
         jsonObject.addProperty("health", player.getHealth());
 
+        // Add custom fields from config (Limited to 3)
+        addCustomFields(jsonObject, player);
+
         sendJsonResponse(exchange, 200, jsonObject);
     }
 
@@ -203,11 +190,39 @@ public class GetPlayerEndpoint implements Endpoint {
             jsonObject.addProperty("isBanned", offlinePlayer.isBanned());
             jsonObject.addProperty("isOp", offlinePlayer.isOp());
 
+            // Add custom fields from config (Limited to 3)
+            addCustomFields(jsonObject, offlinePlayer);
+
             sendJsonResponse(exchange, 200, jsonObject);
             
         } catch (Exception e) {
             plugin.getLogger().warning("Error fetching offline player: " + e.getMessage());
             sendErrorResponse(exchange, 500, "Error fetching player data");
         }
+    }
+
+    /**
+     * Add custom fields to the JSON response based on plugin configuration
+     * Limited to 3 fields as per player card design
+     */
+    private void addCustomFields(JsonObject jsonObject, OfflinePlayer player) {
+        ConfigurationSection customFields = plugin.getConfig().getConfigurationSection("player-endpoint-fields");
+        if (customFields == null) return;
+
+        JsonObject customJson = new JsonObject();
+        int count = 0;
+        for (String key : customFields.getKeys(false)) {
+            if (count >= 3) break; // Hard limit to 3 fields
+
+            ConfigurationSection fieldConfig = customFields.getConfigurationSection(key);
+            if (fieldConfig == null) continue;
+
+            String placeholder = fieldConfig.getString("placeholder", "");
+            String value = PlaceholderHook.setPlaceholders(player, placeholder);
+            
+            customJson.addProperty(key, value);
+            count++;
+        }
+        jsonObject.add("customFields", customJson);
     }
 }
