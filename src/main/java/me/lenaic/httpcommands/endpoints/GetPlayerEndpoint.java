@@ -2,38 +2,32 @@ package me.lenaic.httpcommands.endpoints;
 
 import com.google.gson.JsonObject;
 import me.lenaic.httpcommands.Endpoint;
+import me.lenaic.httpcommands.HttpCommandsPlugin;
+import me.lenaic.httpcommands.PlaceholderHook;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.RegisteredServiceProvider;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.HashMap;
 
 /**
  * Endpoint for getting player information via GET /player/{username}
- *
- * Response (JSON):
- * {
- *   "success": true,
- *   "username": "Player1",
- *   "uuid": "...",
- *   "isOnline": true,
- *   "displayName": "Player1",
- *   "ip": "127.0.0.1",
- *   "ping": 20,
- *   "world": "world",
- *   "balance": 100.0,
- *   "firstPlayed": 1234567890,
- *   "lastPlayed": 1234567890,
- *   "isBanned": false,
- *   "isOp": false
- * }
+ * Optimized for offline players and doesn't lag/timeout
  */
 public class GetPlayerEndpoint implements Endpoint {
 
-    public GetPlayerEndpoint() {
+    private final HttpCommandsPlugin plugin;
+    private final Map<String, JsonObject> cache = new ConcurrentHashMap<>();
+    private static final long CACHE_TTL = 60000; // 1 minute cache
+    private final Map<String, Long> lastCacheUpdate = new ConcurrentHashMap<>();
+
+    public GetPlayerEndpoint(HttpCommandsPlugin plugin) {
+        this.plugin = plugin;
     }
 
     @Override
@@ -79,43 +73,127 @@ public class GetPlayerEndpoint implements Endpoint {
             return;
         }
 
-        // Build response synchronously (same approach as other endpoints)
+        String finalUsername = username;
+
+        // Check cache first
+        if (cache.containsKey(finalUsername.toLowerCase())) {
+            long lastUpdate = lastCacheUpdate.getOrDefault(finalUsername.toLowerCase(), 0L);
+            if (System.currentTimeMillis() - lastUpdate < CACHE_TTL) {
+                try {
+                    sendJsonResponse(exchange, 200, cache.get(finalUsername.toLowerCase()));
+                    return;
+                } catch (IOException e) {
+                    // Fallback to async if sending fails
+                }
+            }
+        }
+
+        // Run player lookup asynchronously to avoid blocking
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                // Quick check: is player online?
+                org.bukkit.entity.Player onlinePlayer = Bukkit.getPlayer(finalUsername);
+                
+                if (onlinePlayer != null && onlinePlayer.isOnline()) {
+                    // Player is online - fast path
+                    sendOnlinePlayerResponse(exchange, onlinePlayer);
+                } else {
+                    // Player is offline - use OfflinePlayer (still fast now that it's async)
+                    sendOfflinePlayerResponse(exchange, finalUsername);
+                }
+            } catch (Exception e) {
+                try {
+                    plugin.getLogger().warning("Error fetching player " + finalUsername + ": " + e.getMessage());
+                    sendErrorResponse(exchange, 500, "Error fetching player data: " + e.getMessage());
+                } catch (IOException ignored) {
+                    // Response already sent or connection closed
+                }
+            }
+        });
+    }
+
+    /**
+     * Send response for online player (fast)
+     */
+    private void sendOnlinePlayerResponse(com.sun.net.httpserver.HttpExchange exchange, org.bukkit.entity.Player player) throws IOException {
         JsonObject jsonObject = new JsonObject();
+        jsonObject.addProperty("success", true);
+        jsonObject.addProperty("username", player.getName());
+        jsonObject.addProperty("uuid", player.getUniqueId().toString());
+        jsonObject.addProperty("isOnline", true);
+        jsonObject.addProperty("displayName", player.getDisplayName());
         
+        // Get player IP
+        if (player.getAddress() != null) {
+            jsonObject.addProperty("ip", player.getAddress().getAddress().getHostAddress());
+        }
+        
+        jsonObject.addProperty("ping", player.getPing());
+        jsonObject.addProperty("world", player.getWorld().getName());
+        
+        // Get balance from Vault if available
         try {
-            // Try to find the player
+            RegisteredServiceProvider<Economy> rsp = Bukkit.getServicesManager().getRegistration(Economy.class);
+            if (rsp != null) {
+                Economy economy = rsp.getProvider();
+                if (economy != null) {
+                    jsonObject.addProperty("balance", economy.getBalance(player));
+                } else {
+                    jsonObject.addProperty("balance", 0.0);
+                }
+            } else {
+                jsonObject.addProperty("balance", 0.0);
+            }
+        } catch (Exception e) {
+            jsonObject.addProperty("balance", 0.0);
+        }
+        
+        jsonObject.addProperty("isBanned", player.isBanned());
+        jsonObject.addProperty("isOp", player.isOp());
+        jsonObject.addProperty("level", player.getLevel());
+        jsonObject.addProperty("health", player.getHealth());
+
+        // Add custom fields from config (Limited to 3)
+        addCustomFields(jsonObject, player);
+
+        // Cache the response
+        cache.put(player.getName().toLowerCase(), jsonObject);
+        lastCacheUpdate.put(player.getName().toLowerCase(), System.currentTimeMillis());
+
+        sendJsonResponse(exchange, 200, jsonObject);
+    }
+
+    /**
+     * Send response for offline player (async)
+     */
+    private void sendOfflinePlayerResponse(com.sun.net.httpserver.HttpExchange exchange, String username) throws IOException {
+        try {
+            // Get offline player data
             OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(username);
 
-            if (offlinePlayer == null || offlinePlayer.getName() == null) {
-                sendErrorResponse(exchange, 404, "Player not found: " + username);
+            // Check if player has ever joined the server
+            if (offlinePlayer == null || offlinePlayer.getName() == null || !offlinePlayer.hasPlayedBefore()) {
+                sendErrorResponse(exchange, 404, "Player '" + username + "' has never joined this server");
                 return;
             }
 
-            // Build JSON response
+            // Build JSON response for offline player
+            JsonObject jsonObject = new JsonObject();
             jsonObject.addProperty("success", true);
             jsonObject.addProperty("username", offlinePlayer.getName());
+            jsonObject.addProperty("uuid", offlinePlayer.getUniqueId().toString());
+            jsonObject.addProperty("isOnline", false);
             
-            UUID uuid = offlinePlayer.getUniqueId();
-            jsonObject.addProperty("uuid", uuid != null ? uuid.toString() : null);
-            jsonObject.addProperty("isOnline", offlinePlayer.isOnline());
+            // Timestamps for offline players
+            jsonObject.addProperty("firstPlayed", offlinePlayer.getFirstPlayed());
+            jsonObject.addProperty("lastPlayed", offlinePlayer.getLastSeen());
             
-            // First and last played timestamps
-            try {
-                jsonObject.addProperty("firstPlayed", offlinePlayer.getFirstPlayed());
-                jsonObject.addProperty("lastPlayed", offlinePlayer.getLastSeen());
-            } catch (Exception e) {
-                // Ignore - player might be new
-            }
-            
-            jsonObject.addProperty("isBanned", offlinePlayer.isBanned());
-            jsonObject.addProperty("isOp", offlinePlayer.isOp());
-
-            // Get player balance from Vault API
+            // Get balance from Vault if available (offline)
             try {
                 RegisteredServiceProvider<Economy> rsp = Bukkit.getServicesManager().getRegistration(Economy.class);
                 if (rsp != null) {
                     Economy economy = rsp.getProvider();
-                    if (economy != null && offlinePlayer.getName() != null) {
+                    if (economy != null) {
                         double balance = economy.getBalance(offlinePlayer);
                         jsonObject.addProperty("balance", balance);
                     } else {
@@ -125,14 +203,49 @@ public class GetPlayerEndpoint implements Endpoint {
                     jsonObject.addProperty("balance", 0.0);
                 }
             } catch (Exception e) {
-                // Vault or economy plugin not available
                 jsonObject.addProperty("balance", 0.0);
             }
+            
+            jsonObject.addProperty("isBanned", offlinePlayer.isBanned());
+            jsonObject.addProperty("isOp", offlinePlayer.isOp());
+
+            // Add custom fields from config (Limited to 3)
+            addCustomFields(jsonObject, offlinePlayer);
+
+            // Cache the response
+            cache.put(username.toLowerCase(), jsonObject);
+            lastCacheUpdate.put(username.toLowerCase(), System.currentTimeMillis());
 
             sendJsonResponse(exchange, 200, jsonObject);
             
         } catch (Exception e) {
-            sendErrorResponse(exchange, 500, "Error: " + e.getMessage());
+            plugin.getLogger().warning("Error fetching offline player: " + e.getMessage());
+            sendErrorResponse(exchange, 500, "Error fetching player data");
         }
+    }
+
+    /**
+     * Add custom fields to the JSON response based on plugin configuration
+     * Limited to 3 fields as per player card design
+     */
+    private void addCustomFields(JsonObject jsonObject, OfflinePlayer player) {
+        ConfigurationSection customFields = plugin.getConfig().getConfigurationSection("player-endpoint-fields");
+        if (customFields == null) return;
+
+        JsonObject customJson = new JsonObject();
+        int count = 0;
+        for (String key : customFields.getKeys(false)) {
+            if (count >= 3) break; // Hard limit to 3 fields
+
+            ConfigurationSection fieldConfig = customFields.getConfigurationSection(key);
+            if (fieldConfig == null) continue;
+
+            String placeholder = fieldConfig.getString("placeholder", "");
+            String value = PlaceholderHook.setPlaceholders(player, placeholder);
+            
+            customJson.addProperty(key, value);
+            count++;
+        }
+        jsonObject.add("customFields", customJson);
     }
 }

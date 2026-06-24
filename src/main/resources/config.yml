@@ -9,11 +9,27 @@ port: 8080
 host: "0.0.0.0"
 
 # Require HTTPS for all requests
-# When enabled, the plugin will log an error if a request is made over HTTP
-# This is intended to encourage the use of a reverse proxy with HTTPS
-# Set to false to allow direct HTTP access (not recommended for production)
-require-https: true
+# When enabled, the plugin will enforce HTTPS for remote requests
+# Local connections (127.0.0.1, localhost) are always allowed
+# For remote requests, a reverse proxy with HTTPS is required
+# Set to false to allow direct HTTP access without restriction
+require-https: false
 
 # Bearer token for authentication
 # WARNING: Change this to a secure token in production!
 bearer-token: "change-me-to-a-secure-token"
+
+# Custom player endpoint fields
+# You can add up to 3 fields. These will be added to the /player/{username} endpoint.
+# This limit is set to match the player card design.
+# You can use placeholders from PlaceholderAPI if it's installed.
+player-endpoint-fields:
+  level:
+    display-name: "Level"
+    placeholder: "%player_level%"
+  balance:
+    display-name: "Balance"
+    placeholder: "%vault_eco_balance%"
+  server:
+    display-name: "Server"
+    placeholder: "Test Server"

@@ -1,16 +1,19 @@
-name: HTTP-Commands
+name: ProMcScure
 version: 1.2.0
 main: me.lenaic.httpcommands.HttpCommandsPlugin
 api-version: '1.21'
+softdepend: [PlaceholderAPI]
 author: ProMcScure plugin
-description: Execute Minecraft commands via HTTP POST requests
+description: Execute Minecraft commands via HTTP REST API - Easy setup, auto-generated token
 plugin-type: PAPER
 
 commands:
-  http-commands:
-    description: Reload the HTTP server configuration
-    usage: /<command> reload
-    permission: httpcommands.reload
+  promcscure:
+    description: ProMcScure API server management (reload, status, token)
+    usage: /<command> [reload|status|token]
+    permission: promcscure.admin
+    aliases:
+      - http-commands
   register:
     description: Confirm or deny account registration
     usage: /<command> <confirm|deny> <registrationId>

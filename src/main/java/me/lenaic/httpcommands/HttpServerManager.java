@@ -48,7 +48,7 @@ public class HttpServerManager {
             router.registerEndpoint(new ExecuteCommandEndpoint(plugin, pendingCommandManager));
             router.registerEndpoint(new GetPlayersEndpoint());
             router.registerEndpoint(new GetInfoEndpoint());
-            router.registerEndpoint(new GetPlayerEndpoint());
+            router.registerEndpoint(new GetPlayerEndpoint(plugin));
             ValidateRegistrationEndpoint validateEndpoint = new ValidateRegistrationEndpoint(plugin);
             router.registerEndpoint(validateEndpoint);
             
@@ -60,7 +60,8 @@ public class HttpServerManager {
 
 
             // Use a fixed thread pool for handling requests
-            httpServer.setExecutor(Executors.newFixedThreadPool(4));
+            // Increased to 8 to handle more concurrent requests and prevent timeouts
+            httpServer.setExecutor(Executors.newFixedThreadPool(8));
             httpServer.start();
 
             plugin.getLogger().info("HTTP server started on port " + port);
